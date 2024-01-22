@@ -20,8 +20,6 @@ UWBRosBridge::UWBRosBridge() : Node("uwb_ros_bridge")
     msgPublisher_ = this->create_publisher<uwb_interfaces::msg::UWBData>(publishTopic, 10);
     RCLCPP_INFO(this->get_logger(), "publish topic : %s", publishTopic.c_str());
 
-    using namespace std::chrono_literals;
-    timer_ = this->create_wall_timer(1ms, std::bind(&UWBRosBridge::timer_callback, this));
 
     service_ = this->create_service<uwb_interfaces::srv::UWBMeasure>(
         "uwb_control", std::bind(&UWBRosBridge::handle_service, this, std::placeholders::_1, std::placeholders::_2));
@@ -29,7 +27,7 @@ UWBRosBridge::UWBRosBridge() : Node("uwb_ros_bridge")
 
 void UWBRosBridge::config()
 {
-    this->declare_parameter("serial_file_path", "/dev/ttyACM0");
+    this->declare_parameter("serial_file_path", "/dev/ttyACM1");
     this->declare_parameter("baud", 115200);
     this->declare_parameter("label_name", "tag_0");
 
@@ -99,7 +97,7 @@ int UWBRosBridge::open_serial(const char *__file, unsigned short int __baud)
     return fd;
 }
 
-void UWBRosBridge::timer_callback()
+void UWBRosBridge::read_serial()
 {
     uint8_t serialBuf[SERIAL_BUF_SIZE] = {0};
     int n = read(serial_fd, serialBuf, sizeof(serialBuf));
@@ -132,32 +130,27 @@ int UWBRosBridge::json_parse(std::string jsonStr)
     Json::Value root;
     try
     {
+        // {"type": 1, "arg1": 1, "arg2": 2}
         if (reader.parse(jsonStr, root))
         {
             if (!root["type"].isNull())
             {
-                std::string type = root["type"].asString();
-                if (type == "measure")
+                type = root["type"].asInt();
+                switch (type)
                 {
-                    if (!root["src"].isNull())
+                case 2:
+                {
+                    if (!root["arg1"].isNull())
                     {
-                        src_addr = atoi(root["src"].asString().c_str());
+                        arg1 = root["arg1"].asInt();
                     }
-                    if (!root["dst"].isNull())
+                    if (!root["arg2"].isNull())
                     {
-                        dst_addr = atoi(root["dst"].asString().c_str());
+                        arg2 = root["arg2"].asInt();
                     }
-                    if (!root["distance"].isNull())
-                    {
-                        distance = atoi(root["distance"].asString().c_str());
-                    }
-                    RCLCPP_INFO(this->get_logger(), "src: %d, dst: %d, distance: %d", src_addr, dst_addr, distance);
-
                     response_flag = true;
+                    break;
                 }
-                else
-                {
-                    RCLCPP_ERROR(this->get_logger(), "unknown type");
                 }
             }
             else
@@ -194,23 +187,35 @@ void UWBRosBridge::handle_service(
     case 1:
     {
         RCLCPP_INFO(this->get_logger(), "cmd: 1");
-
-        response_flag = false;
+        {
+            type = -1;
+            arg1 = -1;
+            arg2 = -1;
+            response_flag = false;
+        }
 
         char data[100];
-        sprintf(data, "{type: %d, arg1: %ld}\r\n", cmd, request->dest);
+        sprintf(data, "{\"type\": %d, \"arg1\": %ld, \"arg2\": 0}\r\n", cmd, request->dest);
 
         write(serial_fd, data, strlen(data));
 
-        // while (!response_flag)
-        // {
-        //     usleep(1000);
-        // }
+        {
+            int wait_cout = 0;
+            while ((!response_flag) && wait_cout++ < 3000)
+            {
+                read_serial();
+                usleep(1000);
+                
+            }
 
-        
-        RCLCPP_INFO(this->get_logger(), "src: %d, dst: %d, distance: %d", src_addr, dst_addr, distance);
+            if (wait_cout >= 30)
+            {
+                RCLCPP_ERROR(this->get_logger(), "no response, timeout.");
+            }
+        }
+        RCLCPP_INFO(this->get_logger(), "response: {type: %d, arg1: %d, arg2: %d}", type, arg1, arg2);
 
-        response->distance = distance;
+        response->distance = arg2;
         break;
     }
     }
