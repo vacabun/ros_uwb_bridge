@@ -27,7 +27,7 @@ UWBRosBridge::UWBRosBridge() : Node("uwb_ros_bridge")
 
 void UWBRosBridge::config()
 {
-    this->declare_parameter("serial_file_path", "/dev/ttyACM1");
+    this->declare_parameter("serial_file_path", "/dev/serial0");
     this->declare_parameter("baud", 115200);
     this->declare_parameter("label_name", "tag_0");
 
