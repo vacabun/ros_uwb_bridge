@@ -47,7 +47,6 @@ private:
     unsigned short int baud_flag;
 
     std::vector<uint8_t> jsonBuf;
-    rclcpp::Publisher<uwb_interfaces::msg::UWBData>::SharedPtr msgPublisher_;
     rclcpp::Service<uwb_interfaces::srv::UWBMeasure>::SharedPtr service_;
 };
 #endif
