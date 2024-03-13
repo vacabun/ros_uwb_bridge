@@ -16,8 +16,7 @@ UWBRosBridge::UWBRosBridge() : Node("uwb_ros_bridge")
 
     serial_fd = open_serial(serial_file_path.c_str(), baud_flag);
 
-    service_ = this->create_service<uwb_interfaces::srv::UWBMeasure>(
-        "uwb_control", std::bind(&UWBRosBridge::handle_service, this, std::placeholders::_1, std::placeholders::_2));
+    service_ = this->create_service<uwb_interfaces::srv::UWBMeasure>("uwb_control", std::bind(&UWBRosBridge::handle_service, this, std::placeholders::_1, std::placeholders::_2));
 }
 
 void UWBRosBridge::config()
@@ -200,8 +199,7 @@ void UWBRosBridge::handle_service(
             {
                 read_serial();
                 usleep(1000);
-                
-            }
+                        }
 
             if (wait_cout >= 30)
             {
